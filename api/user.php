@@ -58,6 +58,18 @@
       $stmt->execute();
       return $stmt->rowCount() > 0 ? json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)) : 0;
     }
+
+    function approveParticipant($json){
+      // {"team_userId": "1"}
+      include "connection.php";
+      $json = json_decode($json, true);
+      $sql = "UPDATE tbl_team_participants SET team_status = 1 WHERE team_userId = :team_userId";
+      $stmt = $conn->prepare($sql);
+      $stmt->bindParam(':team_userId', $json['team_userId']);
+      $stmt->execute();
+      return $stmt->rowCount() > 0 ? 1 : 0;
+    }
+
   } //user
 
 
@@ -79,5 +91,8 @@
       break;
     case "getPendingParticipants":
       echo $user->getPendingParticipants($json);
+      break;
+    case "approveParticipant":
+      echo $user->approveParticipant($json);
       break;
   }
