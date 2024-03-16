@@ -70,7 +70,7 @@
       return $stmt->rowCount() > 0 ? 1 : 0;
     }
 
-    function rejectParticipant($json){
+    function removeParticipant($json){
       // {"team_userId": "1"}
       include "connection.php";
       $json = json_decode($json, true);
@@ -90,6 +90,29 @@
       $stmt->bindParam(':team_roomId', $json['team_roomId']);
       $stmt->execute();
       return $stmt->rowCount() > 0 ? json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)) : 0;
+    }
+
+    function addRiddle($json){
+      // {"rid_roomId": "7"}
+      include "connection.php";
+      $json = json_decode($json, true);
+
+      $sql = "SELECT COUNT(rid_id) + 1 as NumberOfRiddles FROM tbl_riddles WHERE rid_roomId = :roomId";
+      $stmt = $conn->prepare($sql);
+      $stmt->bindParam(":roomId", $json['rid_roomId']); 
+      $stmt->execute();
+      $riddleLevel = $stmt->fetchColumn();
+      // echo "riddle level: " . $riddleLevel;
+
+      $sql = "INSERT INTO tbl_riddles(rid_riddle, rid_answer, rid_level, rid_roomId) 
+      VALUES (:rid_riddle, :rid_answer, :rid_level, :rid_roomId)";
+      $stmt = $conn->prepare($sql);
+      $stmt->bindParam(':rid_riddle', $json['rid_riddle']);
+      $stmt->bindParam(':rid_answer', $json['rid_answer']);
+      $stmt->bindParam(':rid_level', $riddleLevel);
+      $stmt->bindParam(':rid_roomId', $json['rid_roomId']);
+      $stmt->execute();
+      return $stmt->rowCount() > 0 ? 1 : 0;
     }
 
   } //user
@@ -118,7 +141,10 @@
     case "getApprovedParticipants":
       echo $user->getApprovedParticipants($json);
       break;
-    case "rejectParticipant":
-      echo $user->rejectParticipant($json);
+    case "removeParticipant":
+      echo $user->removeParticipant($json);
+      break;
+    case "addRiddle":
+      echo $user->addRiddle($json);
       break;
   }
