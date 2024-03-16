@@ -21,6 +21,18 @@
       $stmt->execute();
       return $stmt->rowCount() > 0 ? 1 : 0;
     }
+
+    function findRoom($json)
+    {
+      // {"room_code": "T6456"}
+      include "connection.php";
+      $json = json_decode($json, true);
+      $sql = "SELECT * FROM tbl_room WHERE room_code = :room_code";
+      $stmt = $conn->prepare($sql);
+      $stmt->bindParam(':room_code', $json['room_code']);
+      $stmt->execute();
+      return $stmt->rowCount() > 0 ? json_encode($stmt->fetch(PDO::FETCH_ASSOC)) : 0;
+    }
   } //user
 
 
@@ -33,5 +45,8 @@
   switch ($operation) {
     case "createRoom":
       echo $user->createRoom($json);
+      break;
+    case "findRoom":
+      echo $user->findRoom($json);
       break;
   }
