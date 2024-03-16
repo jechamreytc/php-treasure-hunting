@@ -33,6 +33,20 @@
       $stmt->execute();
       return $stmt->rowCount() > 0 ? json_encode($stmt->fetch(PDO::FETCH_ASSOC)) : 0;
     }
+
+    function joinRoom($json){
+      // {"team_roomId": "7", "team_userId": "1", "team_name": "Team mo to"}
+      include "connection.php";
+      $json = json_decode($json, true);
+      $sql = "INSERT INTO tbl_team_participants(team_roomId, team_userId, team_name, team_status) 
+      VALUES ( :team_roomId, :team_userId, :team_name, 0)";
+      $stmt = $conn->prepare($sql);
+      $stmt->bindParam(':team_roomId', $json['team_roomId']);
+      $stmt->bindParam(':team_userId', $json['team_userId']);
+      $stmt->bindParam(':team_name', $json['team_name']);
+      $stmt->execute();
+      return $stmt->rowCount() > 0 ? 1 : 0;
+    }
   } //user
 
 
@@ -48,5 +62,8 @@
       break;
     case "findRoom":
       echo $user->findRoom($json);
+      break;
+    case "joinRoom":
+      echo $user->joinRoom($json);
       break;
   }
