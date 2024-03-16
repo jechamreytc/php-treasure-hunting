@@ -70,6 +70,17 @@
       return $stmt->rowCount() > 0 ? 1 : 0;
     }
 
+    function rejectParticipant($json){
+      // {"team_userId": "1"}
+      include "connection.php";
+      $json = json_decode($json, true);
+      $sql = "DELETE FROM tbl_team_participants WHERE team_userId = :team_userId";
+      $stmt = $conn->prepare($sql);
+      $stmt->bindParam(':team_userId', $json['team_userId']);
+      $stmt->execute();
+      return $stmt->rowCount() > 0 ? 1 : 0;
+    }
+
     function getApprovedParticipants($json){
       // {"team_roomId": "7"}
       include "connection.php";
@@ -82,8 +93,6 @@
     }
 
   } //user
-
-
 
   $json = isset($_POST["json"]) ? $_POST["json"] : "0";
   $operation = isset($_POST["operation"]) ? $_POST["operation"] : "0";
@@ -108,5 +117,8 @@
       break;
     case "getApprovedParticipants":
       echo $user->getApprovedParticipants($json);
+      break;
+    case "rejectParticipant":
+      echo $user->rejectParticipant($json);
       break;
   }
