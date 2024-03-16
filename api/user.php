@@ -47,6 +47,17 @@
       $stmt->execute();
       return $stmt->rowCount() > 0 ? 1 : 0;
     }
+
+    function getPendingParticipants($json){
+      // {"team_roomId": "7"}
+      include "connection.php";
+      $json = json_decode($json, true);
+      $sql = "SELECT * FROM tbl_team_participants WHERE team_roomId = :team_roomId AND team_status = 0";
+      $stmt = $conn->prepare($sql);
+      $stmt->bindParam(':team_roomId', $json['team_roomId']);
+      $stmt->execute();
+      return $stmt->rowCount() > 0 ? json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)) : 0;
+    }
   } //user
 
 
@@ -65,5 +76,8 @@
       break;
     case "joinRoom":
       echo $user->joinRoom($json);
+      break;
+    case "getPendingParticipants":
+      echo $user->getPendingParticipants($json);
       break;
   }
