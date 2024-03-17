@@ -27,7 +27,8 @@
       // {"room_code": "T6456"}
       include "connection.php";
       $json = json_decode($json, true);
-      $sql = "SELECT * FROM tbl_room WHERE room_code = :room_code";
+      $sql = "SELECT * FROM tbl_room 
+      WHERE room_code = :room_code";
       $stmt = $conn->prepare($sql);
       $stmt->bindParam(':room_code', $json['room_code']);
       $stmt->execute();
@@ -54,7 +55,8 @@
       // {"team_roomId": "7"}
       include "connection.php";
       $json = json_decode($json, true);
-      $sql = "SELECT * FROM tbl_team_participants WHERE team_roomId = :team_roomId AND team_status = 0";
+      $sql = "SELECT * FROM tbl_team_participants 
+      WHERE team_roomId = :team_roomId AND team_status = 0";
       $stmt = $conn->prepare($sql);
       $stmt->bindParam(':team_roomId', $json['team_roomId']);
       $stmt->execute();
@@ -66,7 +68,8 @@
       // {"team_userId": "1"}
       include "connection.php";
       $json = json_decode($json, true);
-      $sql = "UPDATE tbl_team_participants SET team_status = 1 WHERE team_userId = :team_userId";
+      $sql = "UPDATE tbl_team_participants SET team_status = 1 
+      WHERE team_userId = :team_userId";
       $stmt = $conn->prepare($sql);
       $stmt->bindParam(':team_userId', $json['team_userId']);
       $stmt->execute();
@@ -78,7 +81,8 @@
       // {"team_userId": "1"}
       include "connection.php";
       $json = json_decode($json, true);
-      $sql = "DELETE FROM tbl_team_participants WHERE team_userId = :team_userId";
+      $sql = "DELETE FROM tbl_team_participants 
+      WHERE team_userId = :team_userId";
       $stmt = $conn->prepare($sql);
       $stmt->bindParam(':team_userId', $json['team_userId']);
       $stmt->execute();
@@ -90,7 +94,8 @@
       // {"team_roomId": "7"}
       include "connection.php";
       $json = json_decode($json, true);
-      $sql = "SELECT * FROM tbl_team_participants WHERE team_roomId = :team_roomId AND team_status = 1";
+      $sql = "SELECT * FROM tbl_team_participants 
+      WHERE team_roomId = :team_roomId AND team_status = 1";
       $stmt = $conn->prepare($sql);
       $stmt->bindParam(':team_roomId', $json['team_roomId']);
       $stmt->execute();
@@ -148,27 +153,37 @@
       include "connection.php";
       $json = json_decode($json, true);
       $conn->beginTransaction();
+      $teamAnswer = $json["answer"];
       try {
-        $teamLevel = getTeamLevel($json['team_roomId'], $json['team_userId']);
-        $riddleLevel = getRiddleLevel($json['team_roomId'], $json['rid_scanCode']);
-        $teamAnswer = $json["answer"];
-        $riddleAnswer = getRiddleAnswer($json['team_roomId'], $json['rid_scanCode']);
+        $sql = "SELECT rid_level, rid_answer FROM tbl_riddles 
+        WHERE rid_roomId = :rid_roomId AND rid_scanCode = :rid_scanCode";
+        $stmt = $conn->prepare($sql);
+        $stmt->bindParam(':rid_roomId', $json['team_roomId']);
+        $stmt->bindParam(':rid_scanCode', $json['rid_scanCode']);
+        $stmt->execute();
+        $riddleData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $riddleLevel = $riddleData['rid_level'];
+        $riddleAnswer = $riddleData['rid_answer'];
         // echo "riddle level: " . $riddleLevel;
         // echo "riddle answer: " . $riddleAnswer;
 
-        // validation sa scan if ang team level kay sakto sa riddle level
+        $teamLevel = getTeamLevel($json['team_roomId'], $json['team_userId']);
+
+        // validation sa scan if ang team level kay dili equal sa riddle level
         if ($teamLevel !== $riddleLevel) {
           $conn->commit();
           return -1;
         }
 
-        // validation if ang answer kay sakto sa riddle answer
+        // validation if ang answer kay dili sakto sa riddle answer
         if ($teamAnswer !== $riddleAnswer) {
           $conn->commit();
           return -2;
         }
 
-        $sql = "UPDATE tbl_team_participants SET team_level = team_level + 1 WHERE team_roomId = :team_roomId AND team_userId = :team_userId";
+        $sql = "UPDATE tbl_team_participants SET team_level = team_level + 1 
+        WHERE team_roomId = :team_roomId AND team_userId = :team_userId";
         $stmt = $conn->prepare($sql);
         $stmt->bindParam(':team_roomId', $json['team_roomId']);
         $stmt->bindParam(':team_userId', $json['team_userId']);
@@ -186,7 +201,8 @@
   {
     // {"team_roomId": "7"}
     include "connection.php";
-    $sql = "SELECT team_level FROM tbl_team_participants WHERE team_roomId = :team_roomId AND team_userId = :team_userId";
+    $sql = "SELECT team_level FROM tbl_team_participants 
+    WHERE team_roomId = :team_roomId AND team_userId = :team_userId";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':team_roomId', $roomId);
     $stmt->bindParam(':team_userId', $teamId);
@@ -198,7 +214,8 @@
   {
     // {"rid_roomId": "7"}
     include "connection.php";
-    $sql = "SELECT rid_level FROM tbl_riddles WHERE rid_roomId = :rid_roomId AND rid_scanCode = :rid_scanCode";
+    $sql = "SELECT rid_level FROM tbl_riddles 
+    WHERE rid_roomId = :rid_roomId AND rid_scanCode = :rid_scanCode";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':rid_roomId', $roomId);
     $stmt->bindParam(':rid_scanCode', $riddleScanCode);
@@ -210,7 +227,8 @@
   {
     // {"rid_roomId": "7"}
     include "connection.php";
-    $sql = "SELECT rid_answer FROM tbl_riddles WHERE rid_roomId = :rid_roomId AND rid_scanCode = :rid_scanCode";
+    $sql = "SELECT rid_answer FROM tbl_riddles 
+    WHERE rid_roomId = :rid_roomId AND rid_scanCode = :rid_scanCode";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':rid_roomId', $roomId);
     $stmt->bindParam(':rid_scanCode', $riddleScanCode);
