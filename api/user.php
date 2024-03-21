@@ -6,16 +6,31 @@ class User
 
   function signup($json)
   {
+    // {"username": "test", "password": "test"}
     include "connection.php";
     $json = json_decode($json, true);
-    $sql = "INSERT INTO tbl_user(user_name, user_password)
-      VALUES (:user_name, :user_password)";
+    $sql = "INSERT INTO tbl_users(user_username, user_password)
+      VALUES (:username, :password)";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':username', $json['username']);
     $stmt->bindParam(':password', $json['password']);
     $stmt->execute();
     return $stmt->rowCount() > 0 ? 1 : 0;
   }
+
+  function login($json)
+  {
+    // {"username": "test", "password": "test"}
+    include "connection.php";
+    $json = json_decode($json, true);
+    $sql = "SELECT * FROM tbl_users WHERE user_username = :username AND  BINARY user_password = :password";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":username", $json['username']);
+    $stmt->bindParam(":password", $json['password']);
+    $stmt->execute();
+    return $stmt->rowCount() > 0 ? json_encode($stmt->fetch(PDO::FETCH_ASSOC)) : 0;
+  }
+
   function createRoom($json)
   {
     // {"room_name": "test", "room_description": "test" }
@@ -268,5 +283,8 @@ switch ($operation) {
     break;
   case "answerRiddle":
     echo $user->answerRiddle($json);
+    break;
+  case "login":
+    echo $user->login($json);
     break;
 }
