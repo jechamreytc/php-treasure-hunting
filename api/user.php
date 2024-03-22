@@ -46,10 +46,26 @@ class User
     $stmt->bindParam(':room_description', $json['room_description']);
     $stmt->bindParam(':room_code', $passCode);
     $stmt->execute();
-    return $stmt->rowCount() > 0 ? 1 : 0;
+    if ($stmt->rowCount() > 0) {
+      echo json_encode(["room_code" => $passCode]);
+    } else {
+      echo "0";
+    }
   }
 
-  function findRoom($json)
+  function getAllRiddles($json)
+  {
+    
+    include "connection.php";
+    $json = json_decode($json, true);
+    $sql = "SELECT * FROM tbl_riddles WHERE rid_roomId = :rid_roomId";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(':rid_roomId', $json['rid_roomId']);
+    $stmt->execute();
+    return $stmt->rowCount() > 0 ? json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)) : 0;
+  }
+
+  function getRoomDetails($json)
   {
     // {"room_code": "T6456"}
     include "connection.php";
@@ -60,43 +76,19 @@ class User
     $stmt->execute();
     return $stmt->rowCount() > 0 ? json_encode($stmt->fetch(PDO::FETCH_ASSOC)) : 0;
   }
-
   function joinRoom($json)
   {
-    // {"team_roomId": "7", "team_userId": "1", "team_name": "Team mo to"}
+    // {"room_code": "T6456", "team_name": "test"}
     include "connection.php";
     $json = json_decode($json, true);
-    $sql = "INSERT INTO tbl_team_participants(team_roomId, team_name, team_status, team_level) 
-      VALUES ( :team_roomId, :team_userId, :team_name, 0, 1)";
+    $roomId = getRoomId($json['room_code']);
+    $sql = "INSERT INTO tbl_team_participants(team_roomId, team_name, team_level) 
+    VALUES(:team_roomId, :team_name, 1)";
     $stmt = $conn->prepare($sql);
-    $stmt->bindParam(':team_roomId', $json['team_roomId']);
+    $stmt->bindParam(':team_roomId', $roomId);
     $stmt->bindParam(':team_name', $json['team_name']);
     $stmt->execute();
-    return $stmt->rowCount() > 0 ? 1 : 0;
-  }
-
-  function getPendingParticipants($json)
-  {
-    // {"team_roomId": "7"}
-    include "connection.php";
-    $json = json_decode($json, true);
-    $sql = "SELECT * FROM tbl_team_participants WHERE team_roomId = :team_roomId AND team_status = 0";
-    $stmt = $conn->prepare($sql);
-    $stmt->bindParam(':team_roomId', $json['team_roomId']);
-    $stmt->execute();
-    return $stmt->rowCount() > 0 ? json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)) : 0;
-  }
-
-  function approveParticipant($json)
-  {
-    // {"team_id": "3"}
-    include "connection.php";
-    $json = json_decode($json, true);
-    $sql = "UPDATE tbl_team_participants SET team_status = 1 WHERE team_id = :team_id";
-    $stmt = $conn->prepare($sql);
-    $stmt->bindParam(':team_id', $json['team_id']);
-    $stmt->execute();
-    return $stmt->rowCount() > 0 ? 1 : 0;
+    return $stmt->rowCount() > 0 ? $roomId : 0;
   }
 
   function removeParticipant($json)
@@ -111,7 +103,7 @@ class User
     return $stmt->rowCount() > 0 ? 1 : 0;
   }
 
-  function getApprovedParticipants($json)
+  function getParticipants($json)
   {
     // {"team_roomId": "7"}
     include "connection.php";
@@ -208,6 +200,16 @@ class User
   }
 } //user
 
+function getRoomId($roomCode)
+{
+  include "connection.php";
+  $sql = "SELECT room_id FROM tbl_room WHERE room_code = :room_code";
+  $stmt = $conn->prepare($sql);
+  $stmt->bindParam(':room_code', $roomCode);
+  $stmt->execute();
+  return $stmt->rowCount() > 0 ? $stmt->fetchColumn() : 0;
+}
+
 
 function getTeamLevel($roomId, $teamId)
 {
@@ -257,20 +259,11 @@ switch ($operation) {
   case "createRoom":
     echo $user->createRoom($json);
     break;
-  case "findRoom":
-    echo $user->findRoom($json);
-    break;
   case "joinRoom":
     echo $user->joinRoom($json);
     break;
-  case "getPendingParticipants":
-    echo $user->getPendingParticipants($json);
-    break;
-  case "approveParticipant":
-    echo $user->approveParticipant($json);
-    break;
-  case "getApprovedParticipants":
-    echo $user->getApprovedParticipants($json);
+  case "getParticipants":
+    echo $user->getParticipants($json);
     break;
   case "removeParticipant":
     echo $user->removeParticipant($json);
@@ -286,5 +279,11 @@ switch ($operation) {
     break;
   case "login":
     echo $user->login($json);
+    break;
+  case "getAllRiddles":
+    echo $user->getAllRiddles($json);
+    break;
+  case "getRoomDetails":
+    echo $user->getRoomDetails($json);
     break;
 }
