@@ -39,6 +39,7 @@ class User
     $roomName = $json['room_name'];
     $randomNumber = rand(1, 9999);
     $passCode = trim(ucfirst($roomName))[0] . $randomNumber;
+      
     $sql = "INSERT INTO tbl_room(room_name, room_description, room_code) 
       VALUES (:room_name, :room_description, :room_code)";
     $stmt = $conn->prepare($sql);
@@ -82,6 +83,10 @@ class User
     include "connection.php";
     $json = json_decode($json, true);
     $roomId = getRoomId($json['room_code']);
+
+    // if(recordExists($json["team_name"], "tbl_team_participants", "team_name")) {
+    //   return -1;
+    // }
     $sql = "INSERT INTO tbl_team_participants(team_roomId, team_name, team_level) 
     VALUES(:team_roomId, :team_name, 1)";
     $stmt = $conn->prepare($sql);
@@ -117,7 +122,7 @@ class User
 
   function addRiddle($json)
   {
-    // {"rid_roomId": "7", "rid_riddle": "Riddle mo to", "rid_answer": "Riddle ko to"}
+    // {"rid_roomId": "7", "rid_riddle": "test", "rid_answer": "test", "rid_hint": "naa sa likod sa cr", "rid_level": "1"}
     include "connection.php";
     $json = json_decode($json, true);
     $conn->beginTransaction();
@@ -131,11 +136,12 @@ class User
       // echo "riddle level: " . $riddleLevel;
 
       if ($stmt->rowCount() > 0) {
-        $sql = "INSERT INTO tbl_riddles(rid_riddle, rid_answer, rid_level, rid_roomId) 
-          VALUES (:rid_riddle, :rid_answer, :rid_level, :rid_roomId)";
+        $sql = "INSERT INTO tbl_riddles(rid_riddle, rid_answer, rid_hint, rid_level, rid_roomId) 
+          VALUES (:rid_riddle, :rid_answer, :rid_hint, :rid_level, :rid_roomId)";
         $stmt = $conn->prepare($sql);
         $stmt->bindParam(':rid_riddle', $json['rid_riddle']);
         $stmt->bindParam(':rid_answer', $json['rid_answer']);
+        $stmt->bindParam(':rid_hint', $json['rid_hint']);
         $stmt->bindParam(':rid_level', $riddleLevel);
         $stmt->bindParam(':rid_roomId', $json['rid_roomId']);
         $stmt->execute();
@@ -210,6 +216,17 @@ function getRoomId($roomCode)
   return $stmt->rowCount() > 0 ? $stmt->fetchColumn() : 0;
 }
 
+function recordExists($value, $table, $column)
+{
+  include "connection.php";
+  $sql = "SELECT COUNT(*) FROM $table WHERE $column = :value";
+  $stmt = $conn->prepare($sql);
+  $stmt->bindParam(":value", $value);
+  $stmt->execute();
+  $count = $stmt->fetchColumn();
+  return $count > 0;
+}
+
 
 function getTeamLevel($roomId, $teamId)
 {
@@ -246,6 +263,7 @@ function getRiddleAnswer($roomId, $riddleLevel)
   $stmt->execute();
   return $stmt->rowCount() > 0 ? $stmt->fetchColumn() : 0;
 }
+
 
 $json = isset($_POST["json"]) ? $_POST["json"] : "0";
 $operation = isset($_POST["operation"]) ? $_POST["operation"] : "0";
