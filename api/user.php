@@ -9,6 +9,9 @@ class User
     // {"username": "test", "password": "test"}
     include "connection.php";
     $json = json_decode($json, true);
+    if(recordExists($json["username"], "tbl_users", "user_username")) {
+      return -1;
+    }
     $sql = "INSERT INTO tbl_users(user_username, user_password)
       VALUES (:username, :password)";
     $stmt = $conn->prepare($sql);
@@ -56,7 +59,6 @@ class User
 
   function getAllRiddles($json)
   {
-    
     include "connection.php";
     $json = json_decode($json, true);
     $sql = "SELECT * FROM tbl_riddles WHERE rid_roomId = :rid_roomId";
@@ -84,9 +86,18 @@ class User
     $json = json_decode($json, true);
     $roomId = getRoomId($json['room_code']);
 
-    // if(recordExists($json["team_name"], "tbl_team_participants", "team_name")) {
-    //   return -1;
-    // }
+    $sql = "SELECT COUNT(*) FROM tbl_team_participants WHERE team_roomId = :team_roomId AND team_name = :team_name";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":team_name", $json["team_name"]);
+    $stmt->bindParam(":team_roomId", $roomId);
+    $stmt->execute();
+    $count = $stmt->fetchColumn();
+
+    // if existing na ang team name sa specific nga room
+    if($count > 0){
+      return -1;
+    } 
+
     $sql = "INSERT INTO tbl_team_participants(team_roomId, team_name, team_level) 
     VALUES(:team_roomId, :team_name, 1)";
     $stmt = $conn->prepare($sql);
