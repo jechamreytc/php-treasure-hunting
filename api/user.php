@@ -124,7 +124,7 @@ class User
     // {"team_roomId": "7"}
     include "connection.php";
     $json = json_decode($json, true);
-    $sql = "SELECT * FROM tbl_team_participants WHERE team_roomId = :team_roomId AND team_status = 1";
+    $sql = "SELECT * FROM tbl_team_participants WHERE team_roomId = :team_roomId";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':team_roomId', $json['team_roomId']);
     $stmt->execute();
@@ -215,6 +215,21 @@ class User
     $stmt->execute();
     return 1;
   }
+
+  function isTeamDone($json){
+    // {"roomId": "7", "team_id": "3"}
+    include "connection.php";
+    $json = json_decode($json, true);
+    $riddleCount = getRiddleCount($json['roomId']);
+    $sql = "SELECT team_level FROM tbl_team_participants WHERE team_id = :team_id";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(':team_id', $json['team_id']);
+    $stmt->execute();
+    $teamLevel = $stmt->fetchColumn();
+    // if na complete na nila tanan riddle, return og 1 else 0
+    return $teamLevel > $riddleCount ? 1 : 0;
+
+  }
 } //user
 
 function getRoomId($roomCode)
@@ -275,6 +290,15 @@ function getRiddleAnswer($roomId, $riddleLevel)
   return $stmt->rowCount() > 0 ? $stmt->fetchColumn() : 0;
 }
 
+function getRiddleCount($roomId){
+  include "connection.php";
+  $sql = "SELECT COUNT(*) AS riddleCount FROM tbl_riddles WHERE rid_roomId = :rid_roomId";
+  $stmt = $conn->prepare($sql);
+  $stmt->bindParam(':rid_roomId', $roomId);
+  $stmt->execute();
+  return $stmt->fetchColumn();
+}
+
 
 $json = isset($_POST["json"]) ? $_POST["json"] : "0";
 $operation = isset($_POST["operation"]) ? $_POST["operation"] : "0";
@@ -314,5 +338,8 @@ switch ($operation) {
     break;
   case "getRoomDetails":
     echo $user->getRoomDetails($json);
+    break;
+  case "isTeamDone":
+    echo $user->isTeamDone($json);
     break;
 }
