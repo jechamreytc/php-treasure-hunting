@@ -133,65 +133,85 @@ class User
     return $stmt->rowCount() > 0 ? json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)) : 0;
   }
 
-  function addRiddle($jsonArray) {
+  function addRiddle($jsonArray)
+  {
     include "connection.php";
     $jsonArray = json_decode($jsonArray, true);
-    
+
     $conn->beginTransaction();
     try {
-        foreach ($jsonArray as $json) {
-            
-            $sql = "SELECT COUNT(rid_id) + 1 as NumberOfRiddles FROM tbl_riddles WHERE rid_roomId = :roomId";
-            $stmt = $conn->prepare($sql);
-            $stmt->bindParam(":roomId", $json['rid_roomId']);
-            $stmt->execute();
-            $riddleLevel = $stmt->fetchColumn();
+      foreach ($jsonArray as $json) {
 
-            if ($stmt->rowCount() > 0) {
-                $sql = "INSERT INTO tbl_riddles(rid_riddle, rid_answer, rid_hint, rid_level, rid_roomId) 
+        $sql = "SELECT COUNT(rid_id) + 1 as NumberOfRiddles FROM tbl_riddles WHERE rid_roomId = :roomId";
+        $stmt = $conn->prepare($sql);
+        $stmt->bindParam(":roomId", $json['rid_roomId']);
+        $stmt->execute();
+        $riddleLevel = $stmt->fetchColumn();
+
+        if ($stmt->rowCount() > 0) {
+          $sql = "INSERT INTO tbl_riddles(rid_riddle, rid_answer, rid_hint, rid_level, rid_roomId) 
                     VALUES (:rid_riddle, :rid_answer, :rid_hint, :rid_level, :rid_roomId)";
-                $stmt = $conn->prepare($sql);
-                $stmt->bindParam(':rid_riddle', $json['rid_riddle']);
-                $stmt->bindParam(':rid_answer', $json['rid_answer']);
-                $stmt->bindParam(':rid_hint', $json['rid_hint']);
-                $stmt->bindParam(':rid_level', $riddleLevel);
-                $stmt->bindParam(':rid_roomId', $json['rid_roomId']);
-                $stmt->execute();
-                $lastId = $conn->lastInsertId();
+          $stmt = $conn->prepare($sql);
+          $stmt->bindParam(':rid_riddle', $json['rid_riddle']);
+          $stmt->bindParam(':rid_answer', $json['rid_answer']);
+          $stmt->bindParam(':rid_hint', $json['rid_hint']);
+          $stmt->bindParam(':rid_level', $riddleLevel);
+          $stmt->bindParam(':rid_roomId', $json['rid_roomId']);
+          $stmt->execute();
+          $lastId = $conn->lastInsertId();
 
-                if ($stmt->rowCount() > 0) {
-                    $riddle = $json['rid_riddle'];
-                    $randomNumber = rand(1, 9999);
-                    $scanCode = trim(ucfirst($riddle))[0] . $randomNumber . $lastId;
-                    $sql = "UPDATE tbl_riddles SET rid_scanCode = :rid_scanCode WHERE rid_id = :rid_id";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->bindParam(':rid_scanCode', $scanCode);
-                    $stmt->bindParam(':rid_id', $lastId);
-                    $stmt->execute();
-                }
-            }
+          if ($stmt->rowCount() > 0) {
+            $riddle = $json['rid_riddle'];
+            $randomNumber = rand(1, 9999);
+            $scanCode = trim(ucfirst($riddle))[0] . $randomNumber . $lastId;
+            $sql = "UPDATE tbl_riddles SET rid_scanCode = :rid_scanCode WHERE rid_id = :rid_id";
+            $stmt = $conn->prepare($sql);
+            $stmt->bindParam(':rid_scanCode', $scanCode);
+            $stmt->bindParam(':rid_id', $lastId);
+            $stmt->execute();
+          }
         }
-        $conn->commit();
-        return 1;
+      }
+      $conn->commit();
+      return 1;
     } catch (Exception $e) {
-        $conn->rollBack();
-        return $e;
+      $conn->rollBack();
+      return $e;
     }
-}
+  }
 
 
   function scanRiddle($json)
   {
-    // {"team_roomId": "7", "team_id": "1", "rid_scanCode": "R39573"}
+    // {"team_roomId": "7", "team_id": "1", "rid_scanCode": "R39573", "room_status": 1}
     include "connection.php";
     $json = json_decode($json, true);
 
     $teamLevel = getTeamLevel($json['team_roomId'], $json['team_id']);
     $riddleLevel = getRiddleLevel($json['team_roomId'], $json['rid_scanCode']);
+
     // validation sa scan if ang team level kay sakto sa riddle level
     if ($teamLevel !== $riddleLevel) {
       return -1;
     }
+
+    // validation if ang room kay dili kailangan og challenge
+    if ($json["room_status"] == 0) {
+      $sql = "UPDATE tbl_team_participants SET team_level = team_level + 1 WHERE team_id = :team_id";
+      $stmt = $conn->prepare($sql);
+      $stmt->bindParam(':team_id', $json['team_id']);
+      $stmt->execute();
+
+      $sql2 = "SELECT rid_hint FROM tbl_riddles WHERE rid_roomId = :team_roomId AND rid_level = :rid_level + 1";
+      $stmt2 = $conn->prepare($sql2);
+      $stmt2->bindParam(':team_roomId', $json['team_roomId']);
+      $stmt2->bindParam(':rid_level', $riddleLevel);
+      $stmt2->execute();
+
+      // eh return niya ang hint sa next riddle// mo return siyag 2 if wala nay next hint
+      return $stmt2->rowCount() > 0 ? json_encode($stmt2->fetch(PDO::FETCH_ASSOC)) : 2;
+    }
+
     $sql = "SELECT * FROM tbl_riddles WHERE rid_roomId = :rid_roomId AND rid_scanCode = :rid_scanCode";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':rid_roomId', $json['team_roomId']);
@@ -210,14 +230,22 @@ class User
     $riddleAnswer = getRiddleAnswer($json['rid_roomId'], $json['rid_level']);
     // validation if ang answer kay sakto sa riddle answer
     if ($teamAnswer !== $riddleAnswer) {
-      return 0;
+      return -1;
     }
 
     $sql = "UPDATE tbl_team_participants SET team_level = team_level + 1 WHERE team_id = :team_id";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':team_id', $json['team_id']);
     $stmt->execute();
-    return 1;
+ 
+      $sql2 = "SELECT rid_hint FROM tbl_riddles WHERE rid_roomId = :rid_roomId AND rid_level = :rid_level + 1";
+      $stmt2 = $conn->prepare($sql2);
+      $stmt2->bindParam(':rid_roomId', $json['rid_roomId']);
+      $stmt2->bindParam(':rid_level', $json['rid_level']);
+      $stmt2->execute();
+
+      // eh return niya ang hint sa next riddle
+      return $stmt2->rowCount() > 0 ? json_encode($stmt2->fetch(PDO::FETCH_ASSOC)) : 2;
   }
 
   function isTeamDone($json)
