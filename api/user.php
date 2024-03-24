@@ -133,51 +133,52 @@ class User
     return $stmt->rowCount() > 0 ? json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)) : 0;
   }
 
-  function addRiddle($json)
-  {
-    // {"rid_roomId": "7", "rid_riddle": "test", "rid_answer": "test", "rid_hint": "naa sa likod sa cr", "rid_level": "1"}
+  function addRiddle($jsonArray) {
     include "connection.php";
-    $json = json_decode($json, true);
+    $jsonArray = json_decode($jsonArray, true);
+    
     $conn->beginTransaction();
-
     try {
-      $sql = "SELECT COUNT(rid_id) + 1 as NumberOfRiddles FROM tbl_riddles WHERE rid_roomId = :roomId";
-      $stmt = $conn->prepare($sql);
-      $stmt->bindParam(":roomId", $json['rid_roomId']);
-      $stmt->execute();
-      $riddleLevel = $stmt->fetchColumn();
-      // echo "riddle level: " . $riddleLevel;
+        foreach ($jsonArray as $json) {
+            
+            $sql = "SELECT COUNT(rid_id) + 1 as NumberOfRiddles FROM tbl_riddles WHERE rid_roomId = :roomId";
+            $stmt = $conn->prepare($sql);
+            $stmt->bindParam(":roomId", $json['rid_roomId']);
+            $stmt->execute();
+            $riddleLevel = $stmt->fetchColumn();
 
-      if ($stmt->rowCount() > 0) {
-        $sql = "INSERT INTO tbl_riddles(rid_riddle, rid_answer, rid_hint, rid_level, rid_roomId) 
-          VALUES (:rid_riddle, :rid_answer, :rid_hint, :rid_level, :rid_roomId)";
-        $stmt = $conn->prepare($sql);
-        $stmt->bindParam(':rid_riddle', $json['rid_riddle']);
-        $stmt->bindParam(':rid_answer', $json['rid_answer']);
-        $stmt->bindParam(':rid_hint', $json['rid_hint']);
-        $stmt->bindParam(':rid_level', $riddleLevel);
-        $stmt->bindParam(':rid_roomId', $json['rid_roomId']);
-        $stmt->execute();
-        $lastId = $conn->lastInsertId();
+            if ($stmt->rowCount() > 0) {
+                $sql = "INSERT INTO tbl_riddles(rid_riddle, rid_answer, rid_hint, rid_level, rid_roomId) 
+                    VALUES (:rid_riddle, :rid_answer, :rid_hint, :rid_level, :rid_roomId)";
+                $stmt = $conn->prepare($sql);
+                $stmt->bindParam(':rid_riddle', $json['rid_riddle']);
+                $stmt->bindParam(':rid_answer', $json['rid_answer']);
+                $stmt->bindParam(':rid_hint', $json['rid_hint']);
+                $stmt->bindParam(':rid_level', $riddleLevel);
+                $stmt->bindParam(':rid_roomId', $json['rid_roomId']);
+                $stmt->execute();
+                $lastId = $conn->lastInsertId();
 
-        if ($stmt->rowCount() > 0) {
-          $riddle = $json['rid_riddle'];
-          $randomNumber = rand(1, 9999);
-          $scanCode = trim(ucfirst($riddle))[0] . $randomNumber . $lastId;
-          $sql = "UPDATE tbl_riddles SET rid_scanCode = :rid_scanCode WHERE rid_id = :rid_id";
-          $stmt = $conn->prepare($sql);
-          $stmt->bindParam(':rid_scanCode', $scanCode);
-          $stmt->bindParam(':rid_id', $lastId);
-          $stmt->execute();
+                if ($stmt->rowCount() > 0) {
+                    $riddle = $json['rid_riddle'];
+                    $randomNumber = rand(1, 9999);
+                    $scanCode = trim(ucfirst($riddle))[0] . $randomNumber . $lastId;
+                    $sql = "UPDATE tbl_riddles SET rid_scanCode = :rid_scanCode WHERE rid_id = :rid_id";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bindParam(':rid_scanCode', $scanCode);
+                    $stmt->bindParam(':rid_id', $lastId);
+                    $stmt->execute();
+                }
+            }
         }
-      }
-      $conn->commit();
-      return 1;
+        $conn->commit();
+        return 1;
     } catch (Exception $e) {
-      $conn->rollBack();
-      return $e;
+        $conn->rollBack();
+        return $e;
     }
-  }
+}
+
 
   function scanRiddle($json)
   {
@@ -196,6 +197,7 @@ class User
     $stmt->bindParam(':rid_roomId', $json['team_roomId']);
     $stmt->bindParam(':rid_scanCode', $json['rid_scanCode']);
     $stmt->execute();
+    // kwaon ang details sa specific riddle
     return $stmt->rowCount() > 0 ? json_encode($stmt->fetch(PDO::FETCH_ASSOC)) : 0;
   }
 
