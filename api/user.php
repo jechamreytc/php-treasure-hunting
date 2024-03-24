@@ -9,7 +9,7 @@ class User
     // {"username": "test", "password": "test"}
     include "connection.php";
     $json = json_decode($json, true);
-    if(recordExists($json["username"], "tbl_users", "user_username")) {
+    if (recordExists($json["username"], "tbl_users", "user_username")) {
       return -1;
     }
     $sql = "INSERT INTO tbl_users(user_username, user_password)
@@ -42,7 +42,7 @@ class User
     $roomName = $json['room_name'];
     $randomNumber = rand(1, 9999);
     $passCode = trim(ucfirst($roomName))[0] . $randomNumber;
-      
+
     $sql = "INSERT INTO tbl_room(room_name, room_description, room_code) 
       VALUES (:room_name, :room_description, :room_code)";
     $stmt = $conn->prepare($sql);
@@ -51,11 +51,13 @@ class User
     $stmt->bindParam(':room_code', $passCode);
     $stmt->execute();
     if ($stmt->rowCount() > 0) {
-      echo json_encode(["room_code" => $passCode]);
+      $roomId = $conn->lastInsertId(); // Get the last inserted ID
+      echo json_encode(["room_id" => $roomId, "room_code" => $passCode]);
     } else {
       echo "0";
     }
   }
+
 
   function getAllRiddles($json)
   {
@@ -94,9 +96,9 @@ class User
     $count = $stmt->fetchColumn();
 
     // if existing na ang team name sa specific nga room
-    if($count > 0){
+    if ($count > 0) {
       return -1;
-    } 
+    }
 
     $sql = "INSERT INTO tbl_team_participants(team_roomId, team_name, team_level) 
     VALUES(:team_roomId, :team_name, 1)";
@@ -216,7 +218,8 @@ class User
     return 1;
   }
 
-  function isTeamDone($json){
+  function isTeamDone($json)
+  {
     // {"roomId": "7", "team_id": "3"}
     include "connection.php";
     $json = json_decode($json, true);
@@ -228,7 +231,6 @@ class User
     $teamLevel = $stmt->fetchColumn();
     // if na complete na nila tanan riddle, return og 1 else 0
     return $teamLevel > $riddleCount ? 1 : 0;
-
   }
 } //user
 
@@ -290,7 +292,8 @@ function getRiddleAnswer($roomId, $riddleLevel)
   return $stmt->rowCount() > 0 ? $stmt->fetchColumn() : 0;
 }
 
-function getRiddleCount($roomId){
+function getRiddleCount($roomId)
+{
   include "connection.php";
   $sql = "SELECT COUNT(*) AS riddleCount FROM tbl_riddles WHERE rid_roomId = :rid_roomId";
   $stmt = $conn->prepare($sql);
