@@ -36,19 +36,20 @@ class User
 
   function createRoom($json)
   {
-    // {"room_name": "test", "room_description": "test" }
+    // {"room_name": "test", "room_description": "test", "room_status": 1}
     include "connection.php";
     $json = json_decode($json, true);
     $roomName = $json['room_name'];
     $randomNumber = rand(1, 9999);
     $passCode = trim(ucfirst($roomName))[0] . $randomNumber;
 
-    $sql = "INSERT INTO tbl_room(room_name, room_description, room_code) 
-      VALUES (:room_name, :room_description, :room_code)";
+    $sql = "INSERT INTO tbl_room(room_name, room_description, room_code, room_status) 
+      VALUES (:room_name, :room_description, :room_code, :room_status)";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':room_name', $roomName);
     $stmt->bindParam(':room_description', $json['room_description']);
     $stmt->bindParam(':room_code', $passCode);
+    $stmt->bindParam(':room_status', $json["room_status"]);
     $stmt->execute();
     if ($stmt->rowCount() > 0) {
       $roomId = $conn->lastInsertId(); // Get the last inserted ID
@@ -106,7 +107,17 @@ class User
     $stmt->bindParam(':team_roomId', $roomId);
     $stmt->bindParam(':team_name', $json['team_name']);
     $stmt->execute();
-    return $stmt->rowCount() > 0 ? $roomId : 0;
+
+    $lastId = $conn->lastInsertId();
+    $sql = "SELECT a.*, b.room_status 
+    FROM tbl_team_participants as a 
+    INNER JOIN tbl_room as b ON a.team_roomId = b.room_id 
+    WHERE team_id = :team_id";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(':team_id', $lastId);
+    $stmt->execute();
+    return $stmt->rowCount() > 0 ? json_encode($stmt->fetch(PDO::FETCH_ASSOC)) : 0;
+    // return $stmt->rowCount() > 0 ? $roomId : 0;
   }
 
   function removeParticipant($json)
@@ -136,47 +147,68 @@ class User
   function addRiddle($jsonArray)
   {
     include "connection.php";
-    $jsonArray = json_decode($jsonArray, true);
+    $decodedArray = json_decode($jsonArray, true);
+
+    // Initialize an array to hold the scan codes
+    $scanCodes = [];
+
+    // Check if JSON decoding was successful and is an array
+    if (!is_array($decodedArray)) {
+      // Log error or return an error code/message
+      return json_encode(["error" => "Invalid JSON"]); // Return an error in JSON format
+    }
+
+    // Assuming $decodedArray should contain an array under a key, e.g., 'riddles'
+    if (!isset($decodedArray['riddles']) || !is_array($decodedArray['riddles'])) {
+      // The decoded JSON does not have the expected structure
+      return json_encode(["error" => "Invalid structure"]); // Return an error in JSON format
+    }
 
     $conn->beginTransaction();
     try {
-      foreach ($jsonArray as $json) {
+      foreach ($decodedArray['riddles'] as $json) {
+        $roomId = $json['rid_roomId'];
 
+        // Prepare SQL to get the next riddle level
         $sql = "SELECT COUNT(rid_id) + 1 as NumberOfRiddles FROM tbl_riddles WHERE rid_roomId = :roomId";
         $stmt = $conn->prepare($sql);
-        $stmt->bindParam(":roomId", $json['rid_roomId']);
+        $stmt->bindParam(":roomId", $roomId, PDO::PARAM_INT);
         $stmt->execute();
         $riddleLevel = $stmt->fetchColumn();
 
-        if ($stmt->rowCount() > 0) {
-          $sql = "INSERT INTO tbl_riddles(rid_riddle, rid_answer, rid_hint, rid_level, rid_roomId) 
-                    VALUES (:rid_riddle, :rid_answer, :rid_hint, :rid_level, :rid_roomId)";
-          $stmt = $conn->prepare($sql);
-          $stmt->bindParam(':rid_riddle', $json['rid_riddle']);
-          $stmt->bindParam(':rid_answer', $json['rid_answer']);
-          $stmt->bindParam(':rid_hint', $json['rid_hint']);
-          $stmt->bindParam(':rid_level', $riddleLevel);
-          $stmt->bindParam(':rid_roomId', $json['rid_roomId']);
-          $stmt->execute();
-          $lastId = $conn->lastInsertId();
+        // Insert the riddle into the database
+        $sql = "INSERT INTO tbl_riddles (rid_riddle, rid_answer, rid_hint, rid_level, rid_roomId)
+                        VALUES (:rid_riddle, :rid_answer, :rid_hint, :rid_level, :rid_roomId)";
+        $stmt = $conn->prepare($sql);
+        $stmt->bindParam(':rid_riddle', $json['rid_riddle']);
+        $stmt->bindParam(':rid_answer', $json['rid_answer']);
+        $stmt->bindParam(':rid_hint', $json['rid_hint']);
+        $stmt->bindParam(':rid_level', $riddleLevel, PDO::PARAM_INT);
+        $stmt->bindParam(':rid_roomId', $roomId, PDO::PARAM_INT);
+        $stmt->execute();
+        $lastId = $conn->lastInsertId();
 
-          if ($stmt->rowCount() > 0) {
-            $riddle = $json['rid_riddle'];
-            $randomNumber = rand(1, 9999);
-            $scanCode = trim(ucfirst($riddle))[0] . $randomNumber . $lastId;
-            $sql = "UPDATE tbl_riddles SET rid_scanCode = :rid_scanCode WHERE rid_id = :rid_id";
-            $stmt = $conn->prepare($sql);
-            $stmt->bindParam(':rid_scanCode', $scanCode);
-            $stmt->bindParam(':rid_id', $lastId);
-            $stmt->execute();
-          }
-        }
+        // Generate and update the scan code
+        $hint = $json['rid_hint'];
+        $randomNumber = rand(1, 9999);
+        $scanCode = trim(ucfirst($hint))[0] . $randomNumber . $lastId;
+        $sql = "UPDATE tbl_riddles SET rid_scanCode = :rid_scanCode WHERE rid_id = :rid_id";
+        $stmt = $conn->prepare($sql);
+        $stmt->bindParam(':rid_scanCode', $scanCode);
+        $stmt->bindParam(':rid_id', $lastId, PDO::PARAM_INT);
+        $stmt->execute();
+
+        // Add the generated scanCode to the array
+        $scanCodes[] = $scanCode;
       }
       $conn->commit();
-      return 1;
+
+      // Return the array of scan codes on success
+      return json_encode(["success" => true, "scanCodes" => $scanCodes]);
     } catch (Exception $e) {
       $conn->rollBack();
-      return $e;
+      // Return the error message on failure
+      return json_encode(["error" => $e->getMessage()]);
     }
   }
 
@@ -189,11 +221,18 @@ class User
 
     $teamLevel = getTeamLevel($json['team_roomId'], $json['team_id']);
     $riddleLevel = getRiddleLevel($json['team_roomId'], $json['rid_scanCode']);
+    $riddleCode = getRiddleCode($riddleLevel, $json["team_roomId"]);
 
     // validation sa scan if ang team level kay sakto sa riddle level
     if ($teamLevel !== $riddleLevel) {
       return -1;
     }
+
+    // validation if ang scan kay sakto sa riddle code
+    if ($json["rid_scanCode"] !== $riddleCode) {
+      return -2;
+    }
+
 
     // validation if ang room kay dili kailangan og challenge
     if ($json["room_status"] == 0) {
@@ -209,7 +248,7 @@ class User
       $stmt2->execute();
 
       // eh return niya ang hint sa next riddle// mo return siyag 2 if wala nay next hint
-      return $stmt2->rowCount() > 0 ? json_encode($stmt2->fetch(PDO::FETCH_ASSOC)) : 2;
+      return 5;
     }
 
     $sql = "SELECT * FROM tbl_riddles WHERE rid_roomId = :rid_roomId AND rid_scanCode = :rid_scanCode";
@@ -237,16 +276,17 @@ class User
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':team_id', $json['team_id']);
     $stmt->execute();
- 
-      $sql2 = "SELECT rid_hint FROM tbl_riddles WHERE rid_roomId = :rid_roomId AND rid_level = :rid_level + 1";
-      $stmt2 = $conn->prepare($sql2);
-      $stmt2->bindParam(':rid_roomId', $json['rid_roomId']);
-      $stmt2->bindParam(':rid_level', $json['rid_level']);
-      $stmt2->execute();
 
-      // eh return niya ang hint sa next riddle
-      return $stmt2->rowCount() > 0 ? json_encode($stmt2->fetch(PDO::FETCH_ASSOC)) : 2;
+    $sql2 = "SELECT rid_hint FROM tbl_riddles WHERE rid_roomId = :rid_roomId AND rid_level = :rid_level + 1";
+    $stmt2 = $conn->prepare($sql2);
+    $stmt2->bindParam(':rid_roomId', $json['rid_roomId']);
+    $stmt2->bindParam(':rid_level', $json['rid_level']);
+    $stmt2->execute();
+
+    // eh return niya ang hint sa next riddle
+    return $stmt2->rowCount() > 0 ? json_encode($stmt2->fetch(PDO::FETCH_ASSOC)) : 2;
   }
+
 
   function isTeamDone($json)
   {
@@ -328,6 +368,17 @@ function getRiddleCount($roomId)
   $sql = "SELECT COUNT(*) AS riddleCount FROM tbl_riddles WHERE rid_roomId = :rid_roomId";
   $stmt = $conn->prepare($sql);
   $stmt->bindParam(':rid_roomId', $roomId);
+  $stmt->execute();
+  return $stmt->fetchColumn();
+}
+
+function getRiddleCode($riddleLevel, $roomId)
+{
+  include "connection.php";
+  $sql = "SELECT rid_scanCode FROM tbl_riddles WHERE rid_roomId = :rid_roomId AND rid_level = :rid_level";
+  $stmt = $conn->prepare($sql);
+  $stmt->bindParam(':rid_roomId', $roomId);
+  $stmt->bindParam(':rid_level', $riddleLevel);
   $stmt->execute();
   return $stmt->fetchColumn();
 }
